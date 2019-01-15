@@ -1,0 +1,59 @@
+{
+    "name": "vae_mnist_L8_rotate",
+    "n_gpu": 1,
+    
+    "arch": {
+        "type": "VAE",
+        "args": {
+                 "latent_size" : 8,
+                 "img_size": 40
+        }
+    },
+    "data_loader": {
+        "type": "make_generators_MNIST",
+        "args":{
+            "files_dict_loc": "/media/rene/data/MNIST/files_dict.pkl",
+            "batch_size": 256,
+            "num_workers": 4,
+            "return_size": 40,
+            "rotation": 90
+        }
+    },
+    "optimizer": {
+        "type": "Adam",
+        "args":{
+            "lr": 0.005,
+            "weight_decay": 5e-4
+        }
+    },
+
+    "loss": {
+        "type": "make_vae_loss",
+        "args":{
+            "KLD_weight": 1
+        }
+    },
+    "metrics": [
+        "BCE", "KLD"
+    ],
+    "lr_scheduler": {
+        "type": "StepLR",
+        "args": {
+            "step_size": 50,
+            "gamma": 0.2
+        }
+    },
+    "trainer": {
+        "epochs": 150,
+        "save_dir": "/media/rene/data/equivariance/mnist",
+        "save_period": 1,
+        "verbosity": 1,
+        "give_model_label": false,
+        
+        "monitor": "min val_loss",
+        "early_stop": 100,
+        
+        "tensorboardX": true,
+        "log_dir": "/media/rene/data/equivariance/mnist"
+    }
+}
