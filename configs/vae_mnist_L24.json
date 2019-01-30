@@ -1,11 +1,11 @@
 {
-    "name": "vae_mnist_L16",
+    "name": "vae_mnist_L24",
     "n_gpu": 1,
     
     "arch": {
         "type": "VAE",
         "args": {
-                 "latent_size" : 16,
+                 "latent_size" : 24,
                  "img_size": 40
         }
     },

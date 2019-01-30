@@ -1,11 +1,11 @@
 {
-    "name": "vae_mnist_L16",
+    "name": "vae_mnist_L10_rotate",
     "n_gpu": 1,
     
     "arch": {
         "type": "VAE",
         "args": {
-                 "latent_size" : 16,
+                 "latent_size" : 10,
                  "img_size": 40
         }
     },
@@ -16,6 +16,7 @@
             "batch_size": 128,
             "num_workers": 2,
             "return_size": 40,
+            "rotation_range": [0, 360],
             "normalize": true
         }
     },

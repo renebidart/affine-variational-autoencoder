@@ -1,5 +1,5 @@
 {
-    "name": "vae_mnist_L32_rr",
+    "name": "vae_mnist_L32_rotate",
     "n_gpu": 1,
     
     "arch": {
@@ -10,19 +10,20 @@
         }
     },
     "data_loader": {
-        "type": "make_generators_MNIST",
+        "type": "make_generators_MNIST_CTRNFS",
         "args":{
             "files_dict_loc": "/media/rene/data/MNIST/files_dict.pkl",
-            "batch_size": 256,
-            "num_workers": 4,
+            "batch_size": 128,
+            "num_workers": 2,
             "return_size": 40,
-            "crop_scale": 0.5
+            "rotation_range": [0, 360],
+            "normalize": true
         }
     },
     "optimizer": {
         "type": "Adam",
         "args":{
-            "lr": 0.005,
+            "lr": 0.001,
             "weight_decay": 5e-4
         }
     },
@@ -39,12 +40,12 @@
     "lr_scheduler": {
         "type": "StepLR",
         "args": {
-            "step_size": 50,
+            "step_size": 30,
             "gamma": 0.2
         }
     },
     "trainer": {
-        "epochs": 150,
+        "epochs": 90,
         "save_dir": "/media/rene/data/equivariance/mnist",
         "save_period": 1,
         "verbosity": 1,
