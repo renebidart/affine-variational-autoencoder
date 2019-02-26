@@ -16,34 +16,35 @@ def get_instance(module, name, config, *args):
 
 
 def main(config, resume):
-    train_logger = Logger()
-    
-    data_loader = get_instance(module_data, 'data_loader', config)['train']
-    valid_data_loader = get_instance(module_data, 'data_loader', config)['val']
+    with torch.autograd.set_detect_anomaly(True):
 
-    # build model architecture
-    model = get_instance(module_arch, 'arch', config)
-    print(model)
-    
-    # get function handles of loss and metrics
-    loss = get_instance(module_loss, 'loss', config)
-#     loss = getattr(module_loss, config['loss'])
-    metrics = [getattr(module_metric, met) for met in config['metrics']]
+        train_logger = Logger()
 
-    # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
-    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = get_instance(torch.optim, 'optimizer', config, trainable_params)
-    lr_scheduler = get_instance(torch.optim.lr_scheduler, 'lr_scheduler', config, optimizer)
+        data_loader = get_instance(module_data, 'data_loader', config)['train']
+        valid_data_loader = get_instance(module_data, 'data_loader', config)['val']
 
-    trainer = Trainer(model, loss, metrics, optimizer, 
-                      resume=resume,
-                      config=config,
-                      data_loader=data_loader,
-                      valid_data_loader=valid_data_loader,
-                      lr_scheduler=lr_scheduler,
-                      train_logger=train_logger)
+        # build model architecture
+        model = get_instance(module_arch, 'arch', config)
 
-    trainer.train()
+        # get function handles of loss and metrics
+        loss = get_instance(module_loss, 'loss', config)
+    #     loss = getattr(module_loss, config['loss'])
+        metrics = [getattr(module_metric, met) for met in config['metrics']]
+
+        # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
+        trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+        optimizer = get_instance(torch.optim, 'optimizer', config, trainable_params)
+        lr_scheduler = get_instance(torch.optim.lr_scheduler, 'lr_scheduler', config, optimizer)
+
+        trainer = Trainer(model, loss, metrics, optimizer, 
+                          resume=resume,
+                          config=config,
+                          data_loader=data_loader,
+                          valid_data_loader=valid_data_loader,
+                          lr_scheduler=lr_scheduler,
+                          train_logger=train_logger)
+
+        trainer.train()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch Template')

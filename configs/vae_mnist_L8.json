@@ -39,12 +39,12 @@
     "lr_scheduler": {
         "type": "StepLR",
         "args": {
-            "step_size": 30,
+            "step_size": 60,
             "gamma": 0.2
         }
     },
     "trainer": {
-        "epochs": 90,
+        "epochs": 200,
         "save_dir": "/media/rene/data/equivariance/mnist",
         "save_period": 1,
         "verbosity": 1,

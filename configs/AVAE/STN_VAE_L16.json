@@ -1,13 +1,13 @@
 {
-    "name": "vae_mnist_L14",
+    "name": "stn_vae_mnist_L16",
     "n_gpu": 1,
     
     "arch": {
-        "type": "VAE",
+        "type": "AffineVAE",
         "args": {
-                 "latent_size" : 14,
-                 "img_size": 40
-        }
+                 "latent_size" : 16,
+                 "img_size": 40,
+                 "use_STN": true        }
     },
     "data_loader": {
         "type": "make_generators_MNIST_CTRNFS",
