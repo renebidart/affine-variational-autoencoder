@@ -19,7 +19,6 @@ def make_vae_loss(KLD_weight=1):
         logvar = mu_logvar[:, int(mu_logvar.size()[1]/2):]
         KLD = -0.5 * torch.sum(1 + 2 * logvar - mu.pow(2) - (2 * logvar).exp())
         BCE = F.mse_loss(recon_x, target, reduction='sum')
-#         loss = Variable(BCE + KLD_weight*KLD, requires_grad=True)
         loss = BCE + KLD_weight*KLD
         return loss
     return vae_loss
