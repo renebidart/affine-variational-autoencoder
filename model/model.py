@@ -13,7 +13,9 @@ from model.loss import make_vae_loss
 
 
 class AffineVAE(nn.Module):
-    def __init__(self, pre_trained_VAE=None, img_size=28, input_dim=1, output_dim=1, latent_size=8, rotation_only=False, use_STN=False):
+    def __init__(self, pre_trained_VAE=None, latent_size=16, batch_opt_params=None, 
+                 img_size=28, input_dim=1, output_dim=1, 
+                 rotation_only=False, use_STN=False):
         """Do we always need the device whenever we're creating tensors in the model? Whats the proper way to do this?"""
         super(AffineVAE, self).__init__()
         if pre_trained_VAE is None:
@@ -24,7 +26,7 @@ class AffineVAE(nn.Module):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.rotation_only = rotation_only
-#         self.optim_params=None
+        self.batch_opt_params = batch_opt_params
         self.use_STN = use_STN
         
         if self.use_STN: #(https://pytorch.org/tutorials/intermediate/spatial_transformer_tutorial.html)
@@ -134,11 +136,19 @@ class AffineVAE(nn.Module):
         """
         
         lr = .01
-        best_loss = 1e10
+        bs = x.size()[0]
         vae_loss = make_vae_loss(KLD_weight=1)
         
+        def vae_loss_unreduced(output, target, KLD_weight=1):
+            recon_x, mu_logvar  = output
+            mu = mu_logvar[:, 0:int(mu_logvar.size()[1]/2)]
+            logvar = mu_logvar[:, int(mu_logvar.size()[1]/2):]
+            KLD = -0.5 * torch.sum(1 + 2 * logvar - mu.pow(2) - (2 * logvar).exp(), dim=1)
+            BCE = F.mse_loss(recon_x, target, reduction='none')    
+            BCE = torch.sum(BCE, dim=(1, 2, 3))
+            loss = BCE + KLD_weight*KLD
+            return loss    
         
-        bs = x.size()[0]
         
         # Find the best rotation for all these samples
         with torch.no_grad():
@@ -146,57 +156,68 @@ class AffineVAE(nn.Module):
             theta = torch.cuda.FloatTensor(bs, num_times).uniform_(-2*math.pi, 2*math.pi)
             
             for trial in range(num_times):
-                affine_params = torch.cat([torch.cos(theta[:, trial]), torch.sin(theta[:, trial]), 
-                                           torch.tensor([0.0 for i in range(bs)], requires_grad=True, device="cuda"), 
-                                           -1*torch.sin(theta[:, trial]), torch.cos(theta[:, trial]),
-                                           torch.tensor([0.0 for i in range(bs)], requires_grad=True, device="cuda")]).view(-1, 2, 3)
-                
+                affine_params = torch.cat([torch.cat([torch.cos(theta[batch_num, trial]).unsqueeze(0), 
+                                                      torch.sin(theta[batch_num, trial]).unsqueeze(0), 
+                                                      torch.tensor([0.0], requires_grad=True, device="cuda"), 
+                                                      -1*torch.sin(theta[batch_num, trial]).unsqueeze(0), 
+                                                      torch.cos(theta[batch_num, trial].unsqueeze(0)),
+                                                      torch.tensor([0.0], requires_grad=True, device="cuda")]).view(-1, 2, 3) 
+                                           for batch_num in range(bs)], dim=0)
+                x_affine = self.affine(x, affine_params)
+                mu_logvar = self.VAE.encode(x_affine)
+                z = self.VAE.reparameterize(mu_logvar, deterministic=True)
+                recon_x = self.VAE.decode(z)
+                recon_x = self.affine_inv(recon_x, affine_params)
+                loss = vae_loss_unreduced((recon_x, mu_logvar), x)                    
+                theta_loss[:, trial] = loss.clone().detach()
+            min_loss_idx = torch.argmin(theta_loss, dim=1)
+            min_theta = theta[torch.arange(theta.size(0)), min_loss_idx]
+        
+        # now do sgd on these values of theta
+        with torch.enable_grad():
+            theta = min_theta.squeeze()
+            theta = theta.data.clone().detach().requires_grad_(True).cuda()
+            optimizer = optim.Adam([theta], lr=lr)
+                        
+            for i in range(iterations):
+                affine_params = torch.cat([torch.cat([torch.cos(theta[batch_num]).unsqueeze(0),
+                                      torch.sin(theta[batch_num]).unsqueeze(0), 
+                                      torch.tensor([0.0], requires_grad=True, device="cuda"), 
+                                      -1*torch.sin(theta[batch_num]).unsqueeze(0), 
+                                      torch.cos(theta[batch_num].unsqueeze(0)),
+                                      torch.tensor([0.0], requires_grad=True, device="cuda")]).view(-1, 2, 3) 
+                           for batch_num in range(bs)], dim=0)
+                            
                 x_affine = self.affine(x, affine_params)
                 mu_logvar = self.VAE.encode(x_affine)
                 z = self.VAE.reparameterize(mu_logvar, deterministic=True)
                 recon_x = self.VAE.decode(z)
                 recon_x = self.affine_inv(recon_x, affine_params)
                 loss = vae_loss((recon_x, mu_logvar), x)
-                                          
-
-            
-        
-        
-        with torch.enable_grad():
-            for trial in range(num_times):
-                theta = torch.cuda.FloatTensor(1).uniform_(-2*math.pi, 2*math.pi)
-                theta = theta.data.clone().detach().requires_grad_(True).cuda()
-                optimizer = optim.Adam([theta], lr=lr)
-
-                for i in range(iterations):
-                    affine_params = torch.cat([torch.cos(theta), torch.sin(theta), 
-                                       torch.tensor([0.0], requires_grad=True, device="cuda"), 
-                                       -1*torch.sin(theta), torch.cos(theta),
-                                       torch.tensor([0.0], requires_grad=True, device="cuda")]).view(-1, 2, 3)
-                    
-                    x_affine = self.affine(x, affine_params)
-                    mu_logvar = self.VAE.encode(x_affine)
-                    z = self.VAE.reparameterize(mu_logvar, deterministic=True)
-                    recon_x = self.VAE.decode(z)
-                    recon_x = self.affine_inv(recon_x, affine_params)
-                    loss = vae_loss((recon_x, mu_logvar), x)
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
-                    # check if optimal every iteration, because why not?
-                    if loss.item() < best_loss:
-                        best_loss = loss.item()
-                        best_affine_params = affine_params.clone().detach()
-        
+                # Just in case this SGD is really useless
+                if i ==0:
+                    best_loss = loss.item()
+                    best_affine_params = affine_params.clone().detach()
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                # check if optimal every iteration, because why not?
+                if loss.item() < best_loss:
+                    best_loss = loss.item()
+                    best_affine_params = affine_params.clone().detach()
         return best_affine_params, best_loss
         
       
-    def forward(self, x, theta=None, affine_params=None, deterministic=False, return_affine=False):
-        """forward pass with optional STN， affine transform, or theta. 
+    def forward(self, x, theta=None, affine_params=None, 
+                deterministic=False, return_affine=False):
+        """forward pass with optional STN， affine transform, or theta.
+        
+        Defaults to using batch opt if its specified when model constructed
+        Have to recreate model to disable it for normal unoptimized forward pass
         """
 
         # learned affine 
-        if self.use_STN: 
+        if self.use_STN:
             affine_params = self.get_stn_params(x)
             
         # initalize affine to rotation 
@@ -205,8 +226,13 @@ class AffineVAE(nn.Module):
             affine_params = torch.cat([torch.cos(theta), torch.sin(theta), 
                                            torch.tensor([0.0], requires_grad=True, device="cuda"), 
                                            -1*torch.sin(theta), torch.cos(theta), 
-                                           torch.tensor([0.0], requires_grad=True, device="cuda")]).view(-1, 2, 3)
-
+                                           torch.tensor([0.0], requires_grad=True, device="cuda")]).view(-1, 2, 3)            
+            
+        # if this is specified we ignore everything else and optimize rotation for whole batch
+        elif self.batch_opt_params is not None:
+            affine_params, loss = self.optimize_rotation_batch(x, num_times=self.batch_opt_params['num_times'], 
+                                                               iterations=self.batch_opt_params['iterations'])
+    
         # initialize to identity for each image if affine param not specified and not stn
         elif affine_params is None:
             affine_params = torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float).view(2, 3).cuda()

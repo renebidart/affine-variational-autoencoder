@@ -47,7 +47,6 @@ class Trainer(BaseTrainer):
             The metrics in log must have the key 'metrics'.
         """
         self.model.train()
-#         print(self.model.localization[0].weight[0])
     
         total_loss = 0
         total_metrics = np.zeros(len(self.metrics))
