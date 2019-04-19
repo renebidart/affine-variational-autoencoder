@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 import torch
 from torchvision.utils import make_grid
 from base import BaseTrainer
@@ -12,7 +13,8 @@ class Trainer(BaseTrainer):
         Inherited from BaseTrainer.
     """
     def __init__(self, model, loss, metrics, optimizer, resume, config,
-                 data_loader, valid_data_loader=None, lr_scheduler=None, train_logger=None):
+                 data_loader, valid_data_loader=None, lr_scheduler=None, train_logger=None,
+                 save_rot_loc=None):
         super(Trainer, self).__init__(model, loss, metrics, optimizer, resume, config, train_logger)
         self.config = config
         self.data_loader = data_loader
@@ -20,6 +22,11 @@ class Trainer(BaseTrainer):
         self.do_validation = self.valid_data_loader is not None
         self.lr_scheduler = lr_scheduler
         self.log_step = int(np.sqrt(data_loader.batch_size))
+        
+        self.save_rot_loc = save_rot_loc
+        if self.save_rot_loc is not None:
+            self.rot_dict = {}
+            self.rot_dict
 
     def _eval_metrics(self, output, data):
         """for AUTO"""
@@ -30,6 +37,7 @@ class Trainer(BaseTrainer):
         return acc_metrics
     
     def _train_epoch(self, epoch, give_model_label=False):
+        torch.multiprocessing.set_sharing_strategy('file_system') 
         """
         ONLY FOR VAES
         Training logic for an epoch
@@ -50,7 +58,15 @@ class Trainer(BaseTrainer):
     
         total_loss = 0
         total_metrics = np.zeros(len(self.metrics))
-        for batch_idx, (data, target) in enumerate(self.data_loader):
+        if self.save_rot_loc is not None:
+            self.rot_dict[epoch] = {}
+            
+        for batch_idx, stuff in enumerate(self.data_loader):
+            if self.save_rot_loc is not None:
+                data, target, rot = stuff
+            else:
+                data, target = stuff
+
             data, target = data.to(self.device), target.to(self.device) # ???to longtensor???
 
             self.optimizer.zero_grad()
@@ -59,6 +75,15 @@ class Trainer(BaseTrainer):
                 loss = self.loss(output, data, target)
             else:
                 output = self.model(data)
+                loss = self.loss(output, data)
+            if self.save_rot_loc is not None:
+                recon_x, mu_logvar, affine_params, _x_affine = self.model(data, return_affine=True)
+                affine_params = affine_params.detach().cpu().numpy()
+                target = target.detach().cpu().numpy()
+                rot = rot.detach().numpy()
+                self.rot_dict[epoch][batch_idx]=(affine_params, target, rot)
+                
+                output = (recon_x, mu_logvar)
                 loss = self.loss(output, data)
             self.optimizer.zero_grad() # ??? Why didn't they include this???
             loss.backward()
@@ -93,10 +118,15 @@ class Trainer(BaseTrainer):
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
+            
+        if self.save_rot_loc is not None:
+            pickle.dump(self.save_rot_loc, open(str(self.save_rot_loc)+
+                                                '/'+'the_only_rot_history.pkl', "wb"))
 
         return log
 
     def _valid_epoch(self, epoch, give_model_label=False):
+        torch.multiprocessing.set_sharing_strategy('file_system') 
         """
         Validate after training an epoch
 
@@ -109,7 +139,12 @@ class Trainer(BaseTrainer):
         total_val_loss = 0
         total_val_metrics = np.zeros(len(self.metrics))
         with torch.no_grad():
-            for batch_idx, (data, target) in enumerate(self.valid_data_loader):
+            
+            for batch_idx, stuff in enumerate(self.valid_data_loader):
+                if self.save_rot_loc is not None:
+                    data, target, rot = stuff
+                else:
+                    data, target = stuff
                 data, target = data.to(self.device), target.to(self.device)
                 if give_model_label:
                     output = self.model(data, target)

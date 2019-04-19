@@ -1,3 +1,9 @@
+import random
+import pickle
+from PIL import Image, ImageOps
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 import torch
 import torchvision
 from torch.utils.data import DataLoader
@@ -6,11 +12,6 @@ from torchvision import transforms
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 
-import pickle
-from PIL import Image, ImageOps
-from PIL import ImageFile
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-
 from utils.norms import shape_norm, shape_grid_norm
 
     
@@ -18,7 +19,7 @@ class MNISTCustomTRNFS(Dataset):
     def __init__(self, files_df, base_path=None, 
                  return_size=None, rotation_range=None, normalize=True,
                  path_colname='path', label_colname='label', 
-                 select_label=None, return_loc=False):
+                 select_label=None, return_loc=False, return_rot=False):
         """ MNIST: Per image transforms in the dataloader. 
         
         Do transform, adjustable padding to return_size, then normalize
@@ -43,6 +44,7 @@ class MNISTCustomTRNFS(Dataset):
         self.return_size = return_size
         self.rotation_range = rotation_range
         self.normalize = normalize
+        self.return_rot = return_rot
 
         if isinstance(select_label, int):
             self.files = self.files.loc[self.files[self.label_colname] == int(select_label)]
@@ -68,13 +70,18 @@ class MNISTCustomTRNFS(Dataset):
             
         img = Image.open(loc)
         if self.rotation_range:
-            img = transforms.RandomRotation(self.rotation_range, expand=True)(img)
+            random_angle = random.randint(self.rotation_range[0], self.rotation_range[1])
+            fixed_rotation = (-random_angle, +random_angle)
+            img = transforms.RandomRotation(fixed_rotation, expand=True)(img)
             
         img = transforms.ToTensor()(img)
         if self.return_size:
             img = self.pad_to_size(img, self.return_size)
         if self.normalize:
             img = transforms.Normalize((0.1307,), (0.3081,))(img)# this is wrong norm because imgs are padded
+            
+        if self.return_rot:
+            return img, label, random_angle
 
         if self.return_loc:
             return img, label, loc
@@ -87,7 +94,8 @@ class MNISTCustomTRNFS(Dataset):
 
 def make_generators_MNIST_CTRNFS(files_dict_loc, batch_size, num_workers, 
                                  return_size=40, rotation_range=None, normalize=True,
-                                 path_colname='path', label_colname='class', label=None, return_loc=False):
+                                 path_colname='path', label_colname='class', label=None, 
+                                 return_loc=False, return_rot=False):
     with open(files_dict_loc, 'rb') as f:
         files_dict = pickle.load(f)
 
@@ -97,7 +105,7 @@ def make_generators_MNIST_CTRNFS(files_dict_loc, batch_size, num_workers,
     datasets = {x: MNISTCustomTRNFS(files_dict[x], base_path=None, 
                                        return_size=return_size, rotation_range=rotation_range, normalize=normalize,
                                        path_colname=path_colname, label_colname=label_colname, 
-                                       select_label=label, return_loc=return_loc)
+                                       select_label=label, return_loc=return_loc, return_rot=return_rot)
                 for x in folders
                }
 
@@ -110,7 +118,7 @@ def make_generators_MNIST_CTRNFS(files_dict_loc, batch_size, num_workers,
 
 
 
-#####.   $$$$$$$$.  OLD; delete
+#####.   $$$$$$$$.  OLD; delete ####################################
 
 
 

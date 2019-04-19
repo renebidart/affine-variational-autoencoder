@@ -42,7 +42,8 @@ def main(config, resume):
                           data_loader=data_loader,
                           valid_data_loader=valid_data_loader,
                           lr_scheduler=lr_scheduler,
-                          train_logger=train_logger)
+                          train_logger=train_logger,
+                          save_rot_loc=config["trainer"]["save_rot_loc"])
 
         trainer.train()
 
