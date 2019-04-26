@@ -120,7 +120,7 @@ class Trainer(BaseTrainer):
             self.lr_scheduler.step()
             
         if self.save_rot_loc is not None:
-            pickle.dump(self.save_rot_loc, open(str(self.save_rot_loc)+
+            pickle.dump(self.rot_dict, open(str(self.save_rot_loc)+
                                                 '/'+'the_only_rot_history.pkl', "wb"))
 
         return log

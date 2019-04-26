@@ -124,6 +124,52 @@ class AffineVAE(nn.Module):
                         best_affine_params = affine_params.clone().detach()
         
         return best_affine_params, best_loss
+    
+    def optimize_affine(self, x, num_times=100, iterations=50, translate=False):
+        """ SGD on 4 affine parms, minimizing VAE loss.  
+                
+        ONLY FOR BS=1. deterministic is True during optimization
+        
+        num_times: number of random restarts
+        iterations: nuber of steps of SGD
+        
+        returns: loss, affine_params(2x3, not theta)
+        """
+        
+        lr = .03
+        best_loss = 1e10
+        vae_loss = make_vae_loss(KLD_weight=1)
+        
+        with torch.enable_grad():
+            for trial in range(num_times):
+                a = torch.cuda.FloatTensor(1).uniform_(-1.5, 1.5).requires_grad_(True).cuda()
+                b = torch.cuda.FloatTensor(1).uniform_(-1.5, 1.5).requires_grad_(True).cuda()
+                c = torch.cuda.FloatTensor(1).uniform_(-1.5, 1.5).requires_grad_(True).cuda()
+                d = torch.cuda.FloatTensor(1).uniform_(-1.5, 1.5).requires_grad_(True).cuda()
+                optimizer = optim.Adam([a, b, c, d], lr=lr)
+
+                for i in range(iterations):
+                    affine_params = torch.cat([a, b, 
+                                       torch.tensor([0.0], requires_grad=True, device="cuda"), 
+                                       c, d,
+                                       torch.tensor([0.0], requires_grad=True, device="cuda")]).view(-1, 2, 3)
+                    
+                    x_affine = self.affine(x, affine_params)
+                    mu_logvar = self.VAE.encode(x_affine)
+                    z = self.VAE.reparameterize(mu_logvar, deterministic=True)
+                    recon_x = self.VAE.decode(z)
+                    recon_x = self.affine_inv(recon_x, affine_params)
+                    loss = vae_loss((recon_x, mu_logvar), x)
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                    # check if optimal every iteration, because why not?
+                    if loss.item() < best_loss:
+                        best_loss = loss.item()
+                        best_affine_params = affine_params.clone().detach()
+        
+        return best_affine_params, best_loss
+        
         
     def optimize_rotation_batch(self, x, num_times=100, iterations=50, optimize_once=False):
         """ SGD on theta, minimizing VAE loss.  
