@@ -71,8 +71,7 @@ class MNISTCustomTRNFS(Dataset):
         img = Image.open(loc)
         if self.rotation_range:
             random_angle = random.randint(self.rotation_range[0], self.rotation_range[1])
-            fixed_rotation = (-random_angle, +random_angle)
-            img = transforms.RandomRotation(fixed_rotation, expand=True)(img)
+            img = transforms.RandomRotation((random_angle, random_angle), expand=True)(img)
             
         img = transforms.ToTensor()(img)
         if self.return_size:
