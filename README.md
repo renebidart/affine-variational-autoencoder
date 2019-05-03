@@ -8,15 +8,16 @@ In addition, the affine transform can be optimized during training to force the 
 ---
 ### VAEs don't generalize to rotations, but AVAE does:
 Examples of poor generalization of VAE:
-![alt text](imgs/vae_loss_rotation_ex.png)
+<img src="imgs/vae_loss_rotation_ex.png" alt="vae_loss_rotation_ex" width="300"/>
 
 Comparison of VAE and AVAE generalization over different losses:
-![alt text](imgs/affine_L8_rot_VAE_AVAE_sgd20_r30_600t.png)
+<img src="imgs/affine_L8_rot_VAE_AVAE_sgd20_r30_600t.png" alt="affine_L8_rot_VAE_AVAE_sgd20_r30_600t" width="300"/>
 
 
 ### Training with optimzation of rotations:
 Training with transformation optimization outperforms the other approaches, resulting in a smaller model that is still able to generalize to all affine transforms:
-![alt text](imgs/affine_L8_rot_AVAE_compare_sgd20_r30_600t.png)
+<img src="imgs/affine_L8_rot_AVAE_compare_sgd20_r30_600t.png" alt="affine_L8_rot_AVAE_compare_sgd20_r30_600t" width="300"/>
+
 
 ---
 ### Details:
