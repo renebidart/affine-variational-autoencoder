@@ -1,5 +1,10 @@
 # Affine Variational Autoencoder
 ![alt text](imgs/affine_vae_1d.png)
+
+---
+**[3D Version of this](https://github.com/renebidart/disentangled-3d)**
+---
+
 ## Smaller models with better generalization:
 1. Add affine layers before and after the VAE to make it generalize to affine transformed images
 2. Optimize affine transforms during training so the model will learn to encode only a subset of the full distribution.
