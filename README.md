@@ -2,7 +2,7 @@
 ![alt text](imgs/affine_vae_1d.png)
 
 ---
-**[3D Version of this](https://github.com/renebidart/disentangled-3d)**
+**[3D Version](https://github.com/renebidart/disentangled-3d)**
 ---
 
 ## Smaller models with better generalization:
